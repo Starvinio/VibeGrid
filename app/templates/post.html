@@ -1,0 +1,296 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Post by 
+{% endblock %}
+
+{% block main %}
+    <div class="post-status-box" style="margin:10px">
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+            <!-- Left: Profile picture and username -->
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <img src="/static/profile-pics/{% if host.pfp_file %}{{host.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture"
+                    style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                <a href="/user?u={{user.username}}"><h2 style="margin: 0;">{{ user.username }}</h2></a>
+            </div>
+
+            <!-- Right: Post date -->
+            <i style="white-space: nowrap;">
+                {{ formatDate(post.date) }}
+            </i>
+        </div>
+        <br>
+        <b style="font-size: 25px;">{{post.data | safe}}</b>
+        {% if post.image_path %}
+        <br><br>
+        <img src="{{ url_for('static', filename='post-content/' ~ post.image_path) }}" style="max-width: 960px; border-radius: 20px; padding:3px; margin:0px"">
+        {% endif %}
+        <br>
+        <div class="post-actions" style="display: flex; gap: 10px; align-items: center;">
+            <p id="post-vote-count-{{post.id}}">{{ post_votes }}</p>
+            <!-- Upvote Button -->
+            <button onclick="votePost('{{post.id}}', 'up')" id="upvote-post-{{post.id}}" class="nav-btn" {% if user_post_vote == 1 %}style="background: linear-gradient(to bottom, #4ae24a, #35b735);"{% endif %}>👍</button>
+
+            <!-- Downvote Button -->
+            <button onclick="votePost('{{post.id}}', 'down')" id="downvote-post-{{post.id}}" class="nav-btn" {% if user_post_vote == -1 %}style="background: linear-gradient(to bottom, #e2614a, #b73535);"{% endif %}>👎</button>
+            {% if post.user_id == current_user.id %}
+            <button class="nav-btn primary delete-btn" id="postDelete" type="button" name="{{ post.id }}">🗑️</button>
+            {% endif %}
+            <i id="post-interactions-{{post.id}}" style="white-space: nowrap;">{% if post.votes|length != 1 %}{{ post.votes|length }} Interactions{% else %}1 Interaction{% endif %}</i>
+        </div>
+    </div>
+    <div class="post-status-box" style="margin:20px">
+        <textarea name="new_comment" id="commentta" placeholder="add a comment" class="status-input"></textarea>
+        {% if error %}<p><b style="color:red">Error:</b> {{error}}.</p>{% endif %}
+        <div class="post-actions">
+            <button type="submit" id="postcomment" onclick="postComment('{{post.id}}', '{{current_user.id}}')" class="nav-btn primary" style="font-size: 25;">Share</button>
+        </div>
+    </div>
+    <div class="wall-posts" style="margin:20px">
+    <div>
+        <h3 class="section-title">Comments {% if post.comments|length > 0 %}({{post.comments|length}}){% endif %}</h3>
+    </div>
+    <div id="commentsDiv" style="margin:20px">
+        {% for comment in post.comments %}
+        <div class="post-status-box" name="commentBox-{{comment.id}}">
+            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                <!-- Left: Profile picture and username -->
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="/static/profile-pics/{% if comment.user.pfp_file %}{{comment.user.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture"
+                        style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                    <h3 style="margin: 0;"><a href="/user?u={{comment.user.username}}">{{ comment.user.username }}</a></h3>
+                </div>
+
+                <!-- Right: Comment date -->
+                <i style="white-space: nowrap;">
+                    {{formatDate(comment.date)}}
+                </i>
+            </div>
+            <br>
+            <b>{{comment.data | safe}}</b>
+            <br>
+            <div class="post-actions" style="display: flex; gap: 10px; align-items: center;">
+                <p id="vote-count-{{comment.id}}">{{ getCommentVoteRatio(comment.id) }}</p>
+                {% set user_vote = getUserCommentVote(current_user.id, comment.id) %}
+                <!-- Upvote Button -->
+                <button onclick="voteComment('{{comment.id}}', 'up')" id="upvote-{{comment.id}}" class="nav-btn" {% if user_vote == 1 %}style="background: linear-gradient(to bottom, #4ae24a, #35b735);"{% endif %}>👍</button>
+
+                <!-- Downvote Button -->
+                <button onclick="voteComment('{{comment.id}}', 'down')" id="downvote-{{comment.id}}" class="nav-btn" {% if user_vote == -1 %}style="background: linear-gradient(to bottom, #e2614a, #b73535);"{% endif %}>👎</button>
+                
+                {% if comment.user_id == current_user.id %}
+                    <button class="nav-btn primary delete-btn" type="button" name="{{ comment.id }}">🗑️</button>
+                {% else %}
+                    <button class="nav-btn" onclick="reply(this)" data-username="{{comment.user.username}}">Reply</button>
+                {% endif %}
+                <i id="interactions-{{comment.id}}" style="white-space: nowrap;">{% if comment.votes|length != 1 %}{{ comment.votes|length }} Interactions{% else %}1 Interaction{% endif %}</i>
+            </div>
+            <br>
+        </div>
+        {% endfor %}
+    </div>
+    </div>
+{% endblock %}
+
+{% block script %}
+
+<script>
+    document.addEventListener("DOMContentLoaded", refreshDeleteButtons());
+
+        function refreshDeleteButtons(){
+        const deleteButtons = document.querySelectorAll(".delete-btn");
+
+        deleteButtons.forEach(button => {
+            button.dataset.confirmed = "false";
+
+            button.addEventListener("click", function () {
+                if (this.dataset.confirmed === "false") {
+                    this.style.background = "linear-gradient(to bottom, #e25c4a, #b73e35)";
+                    this.textContent = "Confirm Deletion";
+                    this.dataset.confirmed = "true";
+                } else {
+                    if (this.id == "postDelete")
+                    deletePost(this.name);
+                    else deleteComment(this.name);
+                }
+            });
+        });
+    }
+    
+    function reply(button)
+    {
+        const username = button.getAttribute("data-username");
+        const commentBox = document.getElementById("commentta")
+
+        if (username && commentBox)
+        {
+            const mention = `@${username} `;
+            if (commentBox.value && !commentBox.value.endsWith(' ')) {
+            commentBox.value += ' ';
+            }
+            commentBox.value += mention;
+            commentBox.focus(); // Optional: focus the text area   
+        }
+    }
+
+
+    function deletePost(postId)
+    {
+        fetch('/deletePost',
+            {
+                method: "POST",
+                headers: {'Content-Type': 'application/json',},
+                body: JSON.stringify({ postId: postId})
+            }
+            
+        )
+        .then(response => response.json())
+        .then(data => {
+            window.location.replace("/profile")
+        })
+
+        .catch(error => console.error('Error:', error));
+
+    }
+
+
+    function votePost(postId, direction)
+  {
+    
+    fetch(`/votepost`,
+        {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json',},
+            body: JSON.stringify({ post_id: postId, direction: direction})
+        })
+    .then(response => response.json())
+    .then(data => {
+    if (direction == "up"){
+    
+    document.getElementById(`downvote-post-${postId}`).style = ''
+    document.getElementById(`upvote-post-${postId}`).style = "background: linear-gradient(to bottom, #4ae24a, #35b735);"
+    }
+    else if (direction == "down")
+    {
+        document.getElementById(`upvote-post-${postId}`).style = ''
+        document.getElementById(`downvote-post-${postId}`).style = "background: linear-gradient(to bottom, #e2614a, #b73535);"
+    }
+    document.getElementById(`post-vote-count-${postId}`).textContent = data.vote_count;
+    if (data.interactions != 1) {
+        document.getElementById(`post-interactions-${postId}`).textContent = `${data.interactions} interactions`;
+    }
+    else {
+        document.getElementById(`post-interactions-${postId}`).textContent = `${data.interactions} interaction`;
+    }
+    })
+    .catch(error => console.error('Error:', error));
+  }
+
+  function postComment(postID, userID)
+  {
+    const content = document.getElementById("commentta").value
+    if (!content)
+    {
+        return 1;
+    }
+    fetch("/postComment", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json',},
+        body: JSON.stringify({postID: postID, userID: userID, content: content})
+    })
+    .then(response => response.json())
+    .then(data => {
+    document.getElementById("commentta").value = ""
+    const commentsDiv = document.getElementById('commentsDiv');
+        const newComment = `
+        <div class="post-status-box" name="commentBox-${data.comment_id}">
+            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                <!-- Left: Profile picture and username -->
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="${data.pfp}" alt="Profile Picture"
+                        style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                    <h2 style="margin: 0;"><a href="/profile">{{current_user.username}}</a></h2>
+                </div>
+
+                <!-- Right: Comment date -->
+                <i style="white-space: nowrap;">
+                    ${data.date}
+                </i>
+            </div>
+            <br>
+            <b>${data.content}</b>
+            <br>
+            <div class="post-actions" style="display: flex; gap: 10px; align-items: center;">
+                <p id="vote-count-${data.comment_id}">0</p>
+                
+                <!-- Upvote Button -->
+                <button onclick="voteComment('${data.comment_id}', 'up')" id="upvote-${data.comment_id}" class="nav-btn">👍</button>
+
+                <!-- Downvote Button -->
+                <button onclick="voteComment('${data.comment_id}', 'down')" id="downvote-${data.comment_id}" class="nav-btn">👎</button>
+                
+                <button class="nav-btn primary delete-btn" type="button" name="${data.comment_id}">🗑️</button>
+
+                <i id="interactions-${data.comment_id}" style="white-space: nowrap;">0 Interactions</i>
+            </div>
+            <br>
+        </div>
+        `;
+        commentsDiv.innerHTML += newComment; // Add this line
+        commentsDiv.scrollTop = commentsDiv.scrollHeight; // Auto-scroll to bottom
+        refreshDeleteButtons()
+    })
+    .catch(error => console.error('Error:', error));
+  }
+
+
+  function deleteComment(commentId)
+  {
+    fetch("/deleteComment",{
+        method: "POST",
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({commentId: commentId})
+    })
+    .then(response => response.json())
+    .then(data =>
+    {
+        document.querySelector(`[name="commentBox-${commentId}"]`).innerHTML = '<i style="color: #555">Comment deleted</i>';
+    }
+    )
+    .catch(error => console.error('Error:', error));
+  }
+
+
+  function voteComment(commentId, direction)
+  {
+    if (direction == "up"){
+    
+    document.getElementById(`downvote-${commentId}`).style = ''
+    document.getElementById(`upvote-${commentId}`).style = "background: linear-gradient(to bottom, #4ae24a, #35b735);"
+    }
+    else if (direction == "down")
+    {
+        document.getElementById(`upvote-${commentId}`).style = ''
+        document.getElementById(`downvote-${commentId}`).style = "background: linear-gradient(to bottom, #e2614a, #b73535);"
+    }
+    
+    fetch(`/votecomment`,
+        {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json',},
+            body: JSON.stringify({ comment_id: commentId, direction: direction})
+        })
+    .then(response => response.json())
+    .then(data => {
+    document.getElementById(`vote-count-${commentId}`).textContent = data.vote_count;
+    if (data.interactions != 1) {
+        document.getElementById(`interactions-${commentId}`).textContent = `${data.interactions} interactions`;
+    }
+    else {
+        document.getElementById(`interactions-${commentId}`).textContent = `${data.interactions} interaction`;
+    }
+})
+    .catch(error => console.error('Error:', error));
+  }
+</script>
+{% endblock %}

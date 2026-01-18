@@ -1,0 +1,57 @@
+{% extends "layout_logout.html" %}
+
+{% block title %}
+    Log in
+{% endblock %}
+
+{% block main %}
+    <form action="/login" method="post" style="margin:-50px">
+        <div>
+        <input name="username" type="text" style="font-size: 15pt" autofocus autocomplete="off" placeholder=" username">
+        <p></p>
+        <input name="password" type="password" style="font-size: 15pt; margin-top: 5px;" autocomplete="off" placeholder=" password">
+        <br>
+        <button type="submit" style="font-size: 12pt; width:150px; margin-top: 10px;" class="nav-btn">Log in</button>
+        </div>
+    </form>
+        <br>
+        <br>
+        <br>
+        <p id="error-message"></p>
+{% endblock %}
+
+{% block script %}
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+        const errorMessage = document.getElementById("error-message");
+        const loginForm = document.querySelector("form");
+        const errorText = "<b style='color:red'>Error:</b><br>";
+        loginForm.addEventListener("submit", function(event) {
+            event.preventDefault();
+            errorMessage.innerHTML = "";
+            const username = document.querySelector("input[name='username']").value;
+            const password = document.querySelector("input[name='password']").value;
+            if (!username || !password) {
+                errorMessage.innerHTML += errorText + " Please enter both username and password";
+                return;
+            }
+            fetch("/check_login_data", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({username, password})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status_code === 200) {
+                    window.location.href = data.redirect;
+                } else {
+                    errorMessage.innerHTML += errorText + data.message + "<br>";
+                }
+            })
+            });
+        });
+
+    </script>
+{% endblock %}

@@ -1,0 +1,13 @@
+flask
+flask-session
+flask_sqlalchemy
+flask-login
+flask-socketio
+marshmallow
+flask-marshmallow
+marshmallow-sqlalchemy
+python-dotenv
+bleach
+pytest
+pytest-flask
+

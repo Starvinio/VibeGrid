@@ -1,0 +1,53 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    {{host.username}}
+{% endblock %}
+
+{% block main %}
+    <div class="profile-container">
+        <!-- Profile Header -->
+        <div class="profile-header">
+        <div class="profile-pic-container">
+            <img src="/static/profile-pics/{% if host.pfp_file %}{{host.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" class="profile-pic">
+            <div class="online-indicator"></div>
+        </div>
+        <div class="profile-info">
+            <h1 class="profile-name"> {{host.username}}</h1>
+            <p class="profile-status"> {{host.status}}</p>
+            <div class="profile-stats">
+            <span class="stat">Friends: <strong>{{get_friend_count(host.id)}}</strong></span>
+            <span class="stat">Posts: <strong>{{get_post_count(host.id)}}</strong></span>
+            <span class="stat">Joined: <strong>{% if host.accountcreated.month < 10 %}0{% endif %}{{host.accountcreated.month}}/{{host.accountcreated.year}}</strong></span>
+            </div>
+            <div class="profile-actions">
+            <br> {% if host.username == current_user.username %}
+                <a style="text-decoration:none" href="/settings"  class="action-btn primary">Edit Profile</a>
+                <a style="text-decoration:none" href="/search" class="action-btn primary">Find Friends</a>
+                {% endif %}
+            </div>
+        </div>
+        </div>
+        <br>
+        <h3 class="section-title">Friends</h3>
+        <br>
+        {% for friend in friend_list %}
+            <div class="post-status-box">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    {% if friend.private_account and not are_friends(friend.id)%}
+                    <img src="{{ url_for('static', filename='profile-pics/' + defaultpic) }}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                    {% else  %}
+                    <img src="/static/profile-pics/{% if friend.pfp_file %}{{friend.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                    {% endif %}
+                    <h2><a style="margin: 0; {% if friend.id != current_user.id %}color:{{textcolor}};{% endif %} font-size: 30;" href="/user?u={{friend.username}}">{{ friend.username }}</a></h2>
+                    <b style="color:{{greycolor}}; margin: 10px"> Friends: {{ get_friend_count(friend.id) }} Posts: {{ get_post_count(friend.id) }}</b>
+                    {% if are_friends(friend.id) %}
+                    <a class="nav-btn" style="margin-left: auto;margin-right: 10px;" href="/chat?with={{friend.username}}">Message</a>
+                    {% elif friend.id != current_user.id %}
+                    <button class="nav-btn" style="margin-left: auto;margin-right: 10px;" onclick="friendActions(friend.id)">Add friend</button>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+
+{% endblock %}

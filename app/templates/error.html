@@ -1,0 +1,16 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Error
+{% endblock %}
+
+{% block main %}
+<br><br>
+<div style="width: 600px; margin: auto;">
+<div class="post-status-box" style="text-align: center;">
+    <h1><b style="color:rgb(255, 54, 54)">Error ({{ error[0] }}): </b>{{ error[1] }}.</h1>
+    <br>
+    <img style="width:500px" src="/static/!dev/Crying_Cat.jpg">
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Settings
+{% endblock %}
+
+{% block main %}
+
+<div style="margin: 20px">
+    <div class="profile-header">
+        <div class="profile-info">
+        <h1 class="profile-name">{{ current_user.username }}</h1>
+        <div class="profile-stats">
+            <span class="stat" style="color:{{lightcolor}}">Account created: {% if current_user.accountcreated.day < 10 %}0{% endif %}{{ current_user.accountcreated.day }}/{% if current_user.accountcreated.month < 10 %}0{% endif %}{{ current_user.accountcreated.month }}/{{ current_user.accountcreated.year }}</span>
+        </div>
+        </div>
+    </div>
+    <form action="/settings" method="post" enctype="multipart/form-data">
+    <div class="post-status-box">
+        <h2 class="section-title"><u>Account settings</u></h2>
+        <p class="profile-status" style="color:{{lightcolor}}">these will be visible to everyone</p>
+        <br>
+        {% if error %}
+            <p> <b style="color:red">Error:</b> {{ error }}.</p>
+            <br>
+        {% endif %}
+        <div class="sidebar-section">
+            <p><strong>Profile Picture</strong></p>
+            <p><input type="checkbox" name="use_custom_pfp" {% if current_user.pfp_file %}checked{% endif %}> Use custom</p>
+            <p><input type="file" name="pfp_file" accept="image/*"></p>
+        </div>
+
+        <div class="sidebar-section">
+            <p><strong>Status</strong><br><input autocomplete="off" name="status" type="text" maxlength="50" placeholder="what are you up to?" class="status-input" value="{{ current_user.status or '' }}"></p>
+        </div>
+
+        <div class="sidebar-section">
+            <p><strong>Bio</strong></p>
+            <textarea name="bio" autocomplete="off" placeholder="Introduce yourself" maxlength="500" class="status-input" rows="4">{% if current_user.bio %}{{ current_user.bio.replace('<br>', '\n') }}{% endif %}</textarea>
+        </div>
+        <div class="sidebar-section">
+            <p><strong>Background: </strong> <input id="use_image" name="use_image" type="checkbox" {% if current_user.bg_file %}checked{% endif %}> Use custom <div id="image_selector"></div></p>
+            <br>
+            <p><strong>Profile Banner:</strong> <input id="use_custom_banner" name="use_custom_banner" name="use_image" type="checkbox" {% if current_user.banner_file %}checked{% endif %}> Use custom
+                <div id="insert_banner_div"></div></p>
+            <br>
+            <p><b>Primary Color: </b><input type="color" id="colorPicker" name="primary_color" value="{{current_user.primary_color}}" oninput="updateCurrentColor(this.value)"> <i id='currentColor' style="color:{{lightcolor}}">{{current_user.primary_color}}</i> <button onclick="resetColor()" class="retro-button" type="button">Use Default</button></p>
+            <br>
+            <p><strong>Transparency</strong> <input name="transparency" type="checkbox" {% if current_user.transparency %}checked{% endif %}></p>
+        </div>
+
+
+        <div class="sidebar-section">
+            <p><strong>Walk in sound effect</strong></p>
+            <p>Enabled <input type="checkbox" name="use_walk_in" id="use_walk_in" {% if current_user.walk_in_file %}checked{% endif %}></p>
+            <p id="walk_in_selector"></p>
+        </div>
+    </div>
+
+    <div class="post-status-box">
+        <h2 class="section-title"><u>Privacy Settings</u></h2>
+        <div class="sidebar-section">
+            <p><b>Private Account: <input type="checkbox" name="private_account" id="private_account" {% if current_user.private_account %}checked{% endif %}></p></b></p>
+            <p style="color:{{greycolor}}">If enabled, users will have to befriend you before viewing your posts & profile customization.</p>
+            <p style="color:{{greycolor}}">Your posts may also not be viewable in the public feed.</p>
+        </div>
+    </div>
+
+    <div class="post-status-box">
+        <h2 class="section-title"><u>Preferences</u></h2>
+        <h4 class="profile-status">these will only be visible to you</h4>
+    <br>
+        <div class="sidebar-section">
+            <p><strong>Use darkmode </strong><input style="margin-left:10px" type="checkbox" name="use_dark_mode" {% if current_user.dark_mode == True %}checked{% endif %}></p>
+
+            <p style="margin-top:15px"><strong>Default Tab </strong>
+            <select name="default_tab" style="margin-left:10px">
+                <option value="home" {% if current_user.default_home_tab == "home" %}selected{% endif %}>Home Feed</option>
+                <option value="profile" {% if current_user.default_home_tab == "profile" %}selected{% endif %}>Profile Page</option>
+                <option value="messages" {% if current_user.default_home_tab == "messages" %}selected{% endif %}>Message Hub</option>
+                
+            </select></p>
+
+            <p style="margin-top:15px"><strong>Hide Profile Customization </strong><input style="margin-left:10px" type="checkbox" name="hide_profile_customization" {% if current_user.hide_profile_customization == True %}checked{% endif %}></p>
+            <p style="color:{{greycolor}}">See your own background and colors, even on others' profiles</p>
+        </div>
+
+    <div class="post-status-box">
+        <button type="submit" class="nav-btn" style="font-size: 18px">Save Changes</button>
+        <a href="/profile" class="nav-btn" style="background: linear-gradient(to top, #444, #555); border: 1px solid #333; font-size: 18px">Cancel</a>
+    </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+    let use_image_check = document.querySelector("#use_image");
+    let use_image = document.querySelector("#image_selector");
+    if (use_image_check.checked)
+    {
+        use_image.innerHTML = "<input name='bg_file' type='file'>";
+    }
+    use_image_check.addEventListener("click", function(){
+        if (use_image_check.checked)
+        {
+            use_image.innerHTML = "<input name='bg_file' type='file'>";
+        }  else {
+        use_image.innerHTML = "";
+        }
+    });
+
+
+    let use_banner_check = document.getElementById("use_custom_banner");
+    let use_banner = document.getElementById("insert_banner_div");
+    if (use_banner_check.checked)
+    {
+        use_banner.innerHTML = '<input name="banner_file_selector" type="file">';
+    }
+    use_banner_check.addEventListener("click", function(){
+        if (use_banner_check.checked)
+        {
+            use_banner.innerHTML = '<input name="banner_file_selector" type="file">';
+        }  else {
+        use_image.innerHTML = "";
+        }
+    });
+    
+
+    let use_walk_in = document.querySelector("#use_walk_in")
+    let walk_in = document.querySelector("#walk_in_selector")
+    use_walk_in.addEventListener("click", function(){
+        if (use_walk_in.checked)
+        {
+            walk_in.innerHTML = "<input name='walk_in' type='file'>";
+        }  else {
+        walk_in.innerHTML = "";
+        }
+    });
+
+    function resetColor()
+    {
+        document.getElementById("colorPicker").value = "#3985f8"
+        document.getElementById("currentColor").innerHTML = "#3985f8"
+    }
+
+    function updateCurrentColor(new_color)
+    {
+        document.getElementById("currentColor").innerHTML = new_color
+    }
+</script>
+{% endblock %}

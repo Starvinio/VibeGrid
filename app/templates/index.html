@@ -1,0 +1,479 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Home
+{% endblock %}
+
+{% block style %}
+<style>
+    .main-content {
+        display: flex;
+        flex: 1; /* Take up all remaining space in the container */
+        min-height: 0; /* Important for flex children to shrink */
+    }
+</style>
+{% endblock %}
+
+{% block main %}
+<div class="main-content">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="user-info">
+            <div style="display: flex; align-items: center;">
+                <img class="avatar" src="/static/profile-pics/{% if current_user.pfp_file %}{{current_user.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" class="profile-pic">
+                <div style="color:{{greycolor}}; font-size:12px; margin-left: 10px;">
+                    <p>Joined: {% if current_user.accountcreated.month < 10 %}0{% endif %}{{current_user.accountcreated.month}}/{{current_user.accountcreated.year}}</p>
+                    <p>Friends: {{friend_count or 0}}</p>
+                    <p>Posts: {{post_count or 0}}</p>
+                </div>
+            </div>
+            <b> {{ current_user.username }} ✅</b>
+            <div class="status">Online</div>
+        </div>
+
+
+        <div class="sidebar-section">
+            <div class="section-header">Friend Requests ({{ friend_requests|length or 0 }})</div>
+            <div class="section-content">
+                {% for friend in friend_requests %}
+                <div style="margin-bottom: 15px;" id="fr-{{friend.id}}">
+                    <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                        <img style="width: 30px;" src="/static/profile-pics/{% if friend.pfp_file %}{{friend.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" class="profile-pic">
+                        <div style="margin-left: 10px;">
+                            <div style="font-size: 12px; font-weight: bold;">{{ friend.username }}</div>
+                            <div style="font-size: 10px; color: #666;">X mutual friends</div>
+                        </div>
+                    </div>
+                    <button class="retro-button" style="font-size: 10px; margin-right: 3px;" onclick="friendActions('{{friend.id}}','accept')">Accept</button>
+                    <button class="retro-button" style="font-size: 10px;" onclick="friendActions('{{friend.id}}','remove')">Decline</button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="section-header">All Friends (0 online)</div>
+            <div class="section-content">
+                {% for friend in friend_list %}
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="/static/profile-pics/{% if friend.pfp_file %}{{friend.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                    <h2><a style="margin: 0; color:{{textcolor}}; font-size: 12;" href="/user?u={{friend.username}}">{{ friend.username }}</a></h2>
+                </div>
+                <div class="message-btn" style="margin-bottom:10px; margin-left:50px; margin-right:auto; display: flex; align-items: center;">
+                    <a class="retro-button" href="/chat?with={{friend.username}}">Message</a>
+                </div>
+                {% endfor %}
+            </div>
+            {% if friend_list|length > 0 %}
+            <a href="/friends?u={{host.username}}" class="view-all-link">View All Friends</a>
+            {% endif %}
+        </div>
+
+        <div class="sidebar-section">
+            <form action="/search" method="get">
+                    <input name="q" id="searchInput" style="width:200px" type="text" placeholder="Search for users" autocomplete="off" 
+                        class="search-input section-header" 
+                        {% if query %}value="{{ query }}"{% endif %}>
+                </form>
+            </div>
+
+            <div class="search-results" id="searchResults">
+        </div>
+
+    </div>
+
+    <!-- Main Feed -->
+     
+    <div class="chat-area">
+        <!-- Post Status -->
+        <div class="chat-header">
+            🏠 Homepage - Recent Posts
+        </div>
+         <br>
+            <div class="post-status-box" id="new_post_form" style="margin:10px">
+                 {% if error %}<p style="color:red">Error: {{error}}</p>{% endif %}
+                <textarea name="content" id="new_post_content" placeholder="What's on your mind, {{current_user.username}}?" class="status-input"></textarea>
+                <!-- TODO: ADD LIMIT OF 500 -->
+                <div class="post-actions">
+                    <label for="file-upload" class="nav-btn">+</label>
+                    <input id="file-upload" type="file" class="file-input" accept="image/*" style="vertical-align: middle;">
+                    <img id="preview" style="display:none; max-width: 150px; margin-left: 10px; vertical-align: middle;">
+                    <button id="remove-btn" style="display:none; margin-left: 10px; vertical-align: middle;">Remove</button>
+                    <button onclick="uploadPost()" type="submit" class="nav-btn" style="font-size: 25;">Share</button>
+                </div>
+            </div>
+        <!-- Wall Posts -->
+            <div class="wall-posts" style="margin:10px">
+                <div>
+                    <h3 class="section-title">Posts</h3>
+                </div>
+                <div style="display: flex; justify-content: space-between; width: 100%; white-space: nowrap">
+                    <form action="/" method="get">
+                        <select name="filter">
+                            <option value="new-old">New-Old</option>
+                            <option value="old-new" {% if current_filter == "old-new" %}selected{% endif %}>Old-New</option>
+                            <option value="most-popular" {% if current_filter == "most-popular" %}selected{% endif %}>Most Popular</option>
+                            <option value="friends"{% if current_filter == "friends" %}selected{% endif %}>Friends</option>
+                        </select>
+                        <button class="retro-button" type="submit">Apply Filter</button>
+                    </form>
+                </div>
+                <br>
+            <!-- Posts remain unchanged -->
+            <div id="all-posts">
+            {% for post in posts %}
+                <div class="post-status-box" data-post-id="{{post.id}}" id="postContainer-{{post.id}}">
+                    <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                        <!-- Left: Profile picture and username -->
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <img src="/static/profile-pics/{% if post.user.pfp_file %}{{post.user.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture"
+                                style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                            <h3 style="margin: 0;"><a href="/user?u={{post.user.username}}">{{ post.user.username }}</a></h3>
+                        </div>
+
+                        <!-- Right: Post date -->
+                        <i style="white-space: nowrap;">
+                            {{formatDate(post.date)}}
+                        </i>
+                    </div>
+                    <br>
+                    <p>{{post.data | safe}}</p>
+                    {% if post.image_path %}
+                    <br>
+                    <img src="{{ url_for('static', filename='post-content/' ~ post.image_path) }}" style="max-width: 625px; border-radius: 20px; padding:3px; margin:0px"">
+                    {% endif %}
+                    <br>
+                    <div class="post-actions" style="display: flex; gap: 10px; align-items: center;">
+                        {% set postVoteRatio = getPostVoteRatio(post.id) %}
+                        <p id="vote-count-{{post.id}}">{% if postVoteRatio != 0 %}{{ postVoteRatio }}{% endif %}</p>
+            
+                        {% set user_vote = getUserPostVote(post.id) %}
+    
+                        <button onclick="votePost('{{post.id}}', 'up')" id="upvote-{{post.id}}" class="nav-btn" {% if user_vote == 1 %}style="background: linear-gradient(to bottom, #4ae24a, #35b735);"{% endif %}>👍</button>
+
+                        <button onclick="votePost('{{post.id}}', 'down')" id="downvote-{{post.id}}" class="nav-btn" {% if user_vote == -1 %}style="background: linear-gradient(to bottom, #e2614a, #b73535);"{% endif %}>👎</button>
+
+                        {% if post.user.id == current_user.id %}
+                        <button class="nav-btn primary delete-btn" type="button" name="{{ post.id }}">🗑️</button>
+                        {% endif %}
+
+                        <i id="interactions-{{post.id}}" style="white-space: nowrap;">{% if post.votes|length != 1 %}{{ post.votes|length }} Interactions{% else %}1 Interaction{% endif %}</i>
+                    </div>
+                    <br>
+                    <a href="post?p={{post.id}}">View {% if post.comments|length > 0 %}{{post.comments|length}}{% endif %} Comments</a>
+                </div>
+            {% endfor %}
+            {% if posts|length == 10 %}
+            </div>
+            <button class="nav-btn" style="text-align:center" onclick="loadPosts('{{current_filter or 'new-old'}}')">Load more</button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block script %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+// Use event delegation to handle delete button clicks
+document.addEventListener("click", function(event) {
+    if (event.target.classList.contains("delete-btn")) {
+        const button = event.target;
+        
+        // Initialize confirmed state if not set
+        if (!button.dataset.confirmed) {
+            button.dataset.confirmed = "false";
+        }
+
+        if (button.dataset.confirmed === "false") {
+            button.style.background = "linear-gradient(to bottom, #e25c4a, #b73e35)";
+            button.textContent = "Confirm Deletion";
+            button.dataset.confirmed = "true";
+        } else {
+            deletePost(button.name);
+        }
+    }
+});
+});
+
+const fileInput = document.getElementById('file-upload');
+const preview = document.getElementById('preview');
+const removeBtn = document.getElementById('remove-btn');
+
+fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        preview.src = e.target.result;
+        preview.style.display = 'inline-block';
+        removeBtn.style.display = 'inline-block';
+      };
+      reader.readAsDataURL(file);
+    } else {
+        preview.style.display = 'none';
+        preview.src = '';
+        removeBtn.style.display = 'none';
+        }
+    });
+
+    removeBtn.addEventListener('click', () => {
+        fileInput.value = '';  // Clear the selected file
+        preview.src = '';
+        preview.style.display = 'none';
+        removeBtn.style.display = 'none';
+    });
+
+
+    document.addEventListener("DOMContentLoaded", () => {
+    const input = document.getElementById("searchInput");
+    const resultsDiv = document.getElementById("searchResults");
+
+    input.addEventListener("input", async () => {
+        const query = input.value.trim();
+
+        if (query === "") {
+            resultsDiv.innerHTML = "";
+            return;
+        }
+
+        fetch("/search_query", {
+        method: "POST",
+        headers: {'Content-Type': 'application/json',},
+        body: JSON.stringify({query: query})
+        })
+        .then(response => response.json())
+        .then(data => {
+
+        resultsDiv.innerHTML = ""; // clear previous results
+
+        data.forEach(user => {
+            let userHTML = "";
+
+            if (user.type === "user") {
+                if (user.isFriend === true) {
+                    userHTML = `
+                        <div class="post-status-box" style="background:#91ff78">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <img src="/static/profile-pics/${user.pfp_file}" alt="Profile Picture" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                                <h3><a style="margin: 0; font-size: 12;" href="/user?u=${user.username}">${user.username}</a></h3>
+                                <p style="font-size:13px">(Friend)</p>
+                            </div>
+                            <div class="profile-stats" style="font-size: 15px; margin-left:50px;"> Friends: ${user.friend_count} Posts: ${user.post_count}</div>
+                        </div>`;
+                } else {
+                    userHTML = `
+                        <div class="post-status-box">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <img src="/static/profile-pics/${user.pfp_file}" alt="Profile Picture" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                                <h3><a style="margin: 0; font-size: 12;" href="/user?u=${user.username}">${user.username}</a></h3>
+                            </div>
+                            <div class="profile-stats" style="font-size: 15px; margin-left:50px;"> Friends: ${user.friend_count} Posts: ${user.post_count}</div>
+                        </div>`;
+                }
+            }
+
+            resultsDiv.innerHTML += userHTML;
+        });
+    });
+});
+});
+
+
+function deletePost(postId)
+{
+    fetch('/deletePost',
+        {
+            method: "POST",
+            headers: {'Content-Type': 'application/json',},
+            body: JSON.stringify({ postId: postId})
+        }
+        
+    )
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById(`postContainer-${postId}`).innerHTML = '<i style="color: #555">Post deleted</i>'
+    })
+
+    .catch(error => console.error('Error:', error));
+
+}
+
+
+function votePost(postId, direction)
+{
+    fetch(`/votepost`,
+        {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json',},
+            body: JSON.stringify({ post_id: postId, direction: direction})
+        })
+    .then(response => response.json())
+    .then(data => {
+    if (direction == "up"){
+
+    document.getElementById(`downvote-${postId}`).style = ''
+    document.getElementById(`upvote-${postId}`).style = "background: linear-gradient(to bottom, #4ae24a, #35b735);"
+    }
+    else if (direction == "down")
+    {
+        document.getElementById(`upvote-${postId}`).style = ''
+        document.getElementById(`downvote-${postId}`).style = "background: linear-gradient(to bottom, #e2614a, #b73535);"
+    }
+    document.getElementById(`vote-count-${postId}`).textContent = data.vote_count;
+    if (data.interactions != 1) {
+        document.getElementById(`interactions-${postId}`).textContent = `${data.interactions} interactions`;
+    }
+    else {
+        document.getElementById(`interactions-${postId}`).textContent = `${data.interactions} interaction`;
+    }
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function uploadPost()
+{
+    const textContent = document.getElementById("new_post_content").value
+    if (textContent.length > 450) {
+        console.log("Post content too great - aborting")
+        return 1;
+        }
+    const file_upload = document.getElementById("file-upload")
+    const file = fileInput.files[0];
+
+    if (!file && !textContent)
+    {
+        return 1;
+    }
+
+    const formData = new FormData();
+    formData.append('content', textContent);
+    if (file) {
+        formData.append('image', file);  // 'image' is the key Flask will look for
+    }
+
+    fetch("/upload_post", {
+        method: "POST",
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error("Upload failed");
+        }
+        return response.json();  
+    })
+    .then(data => {
+        console.log("Post uploaded successfully:", data);
+        window.location.replace("/")
+
+    })
+    .catch(error => {
+        console.error("Error uploading post:", error);
+    });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const input = document.getElementById("new_post_content");
+
+    if (!input) {
+        console.error("Textarea not found!");
+        return;
+    }
+
+    input.addEventListener("input", function () {
+        this.style.height = "auto";
+        this.style.height = this.scrollHeight + "px";
+
+        if (this.value.length > 450) {
+            this.style.color = "red";
+        } else {
+            this.style.color = "{{ textcolor }}";  // Will work if this JS is in the template
+        }
+    });
+});
+
+let pageNr = 1;
+
+function loadPosts(filter) {
+    fetch("/request_posts", {
+        method: "POST",
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ filter: filter, pageNr: pageNr, user: null })
+    })
+    .then(response => response.json())
+    .then(data => {
+        let new_posts = "";
+        
+        data.forEach(post => {  // Changed from 'user' to 'post' for clarity
+            let new_post = "";
+            new_post += `
+            <div class="post-status-box" data-post-id="${post.post_id}" id="postContainer-${post.post_id}">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <!-- Left: Profile picture and username -->
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <img src="/static/profile-pics/${post.pfp}" alt="Profile Picture"
+                            style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                        <h2 style="margin: 0;"><a href="/user?u=${post.username}">${post.username}</a></h2>
+                    </div>
+
+                    <!-- Right: Post date -->
+                    <i style="white-space: nowrap;">
+                        ${post.postDate}
+                    </i>
+                </div>
+                <br>
+                <b>${post.postData}</b>`;
+
+            if (post.imagePath) {
+                new_post += `<br><br><img src="${post.imagePath}" style="max-width: 625px;">`;
+            }
+            
+            new_post += `
+                <br>
+                <div class="post-actions" style="display: flex; gap: 10px; align-items: center;">
+                    <p id="vote-count-${post.post_id}">${post.voteRatio || ''}</p>`;
+
+            // Fixed switch statement and vote button logic
+            if (post.user_vote === 1) {
+                new_post += `
+                    <button onclick="votePost('${post.post_id}', 'up')" id="upvote-${post.post_id}" class="nav-btn" style="background: linear-gradient(to bottom, #4ae24a, #35b735);">👍</button>
+                    <button onclick="votePost('${post.post_id}', 'down')" id="downvote-${post.post_id}" class="nav-btn">👎</button>`;
+            } else if (post.user_vote === -1) {
+                new_post += `
+                    <button onclick="votePost('${post.post_id}', 'up')" id="upvote-${post.post_id}" class="nav-btn">👍</button>
+                    <button onclick="votePost('${post.post_id}', 'down')" id="downvote-${post.post_id}" class="nav-btn" style="background: linear-gradient(to bottom, #e2614a, #b73535);">👎</button>`;
+            } else {
+                new_post += `
+                    <button onclick="votePost('${post.post_id}', 'up')" id="upvote-${post.post_id}" class="nav-btn">👍</button>
+                    <button onclick="votePost('${post.post_id}', 'down')" id="downvote-${post.post_id}" class="nav-btn">👎</button>`;
+            }
+            
+            // Fixed current user check - this needs to be handled server-side or passed as data
+            if (post.is_current_user) {  // Assuming this comes from server
+                new_post += `<button class="nav-btn primary delete-btn" type="button" name="${post.post_id}">🗑️</button>`;
+            }
+
+            // Fixed interaction text logic
+            const interaction_form = (post.interactions !== 1) ? "Interactions" : "Interaction";
+
+            new_post += `
+                    <i id="interactions-${post.post_id}" style="white-space: nowrap;">${post.interactions} ${interaction_form}</i>
+                </div>
+                <br>
+                <a href="post?p=${post.post_id}">View ${post.comment_count || ''} Comments</a>
+            </div>`;
+
+            new_posts += new_post;  // Fixed: was adding to itself instead of accumulating
+        });
+        
+        document.getElementById("all-posts").innerHTML += new_posts;
+        pageNr += 1;
+    })
+    .catch(error => {
+        console.error("Error loading posts:", error);
+    });
+}
+</script>
+{% endblock %}

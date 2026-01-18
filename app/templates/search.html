@@ -1,0 +1,110 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Search
+{% endblock %}
+
+{% block style %}
+<style>
+{% if logo == "VibeGrid-Search-bw-dark.png"%}
+.container
+{
+    background-color: #0d0e11;
+}
+{% endif %}
+
+</style>
+{% endblock %}
+
+{% block main %}
+    {% if not current_user.transparency %}
+    <img class="logo" src="/static/!dev/{{logo}}" style="display: flex; width:300px; border-radius: 400px; margin: auto; margin-bottom:-50px; margin-top:10px;">
+    {% endif %}
+    <div class="search-box">
+            <input name="q" id="searchInput" type="text" placeholder="Search for Users or Posts" autofocus autocomplete="off" class="search-input"{% if query %}value="{{ query }}"{% endif %}>
+    </div>
+
+    <div class="search-results" id="searchResults">
+        {% for user in query_result %}
+            <div class="post-status-box">
+                <img src="{{ url_for('static', filename='profile-pics/' + user.pfp_file) }}" 
+                     alt="Profile Picture" class="search-result-avatar">
+                <a href="/user?u={{user.username}}" class="search-result-name">{{user.username}}</a>
+                <b style="color:gray"> Friends: {{ get_friend_count(user) }} Posts: {{ get_post_count(user) }}
+                </b>
+            </div>
+        {% endfor %}
+    </div>
+{% endblock %}
+
+{% block script %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const input = document.getElementById("searchInput");
+    const resultsDiv = document.getElementById("searchResults");
+
+    input.addEventListener("input", async () => {
+        const query = input.value.trim();
+
+        if (query === "") {
+            resultsDiv.innerHTML = "";
+            return;
+        }
+
+        fetch("/search_query", {
+        method: "POST",
+        headers: {'Content-Type': 'application/json',},
+        body: JSON.stringify({query: query})
+        })
+        .then(response => response.json())
+        .then(data => {
+
+        resultsDiv.innerHTML = ""; // clear previous results
+
+        data.forEach(user => {
+            let userHTML = "";
+
+            if (user.type === "user") {
+                if (user.isFriend === true) {
+                    userHTML = `
+                        <div class="post-status-box" style="background:#91ff78">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <img src="/static/profile-pics/${user.pfp_file}" alt="Profile Picture" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                                <h3><a style="margin: 0; font-size: 12;" href="/user?u=${user.username}">${user.username}</a></h3>
+                                <p style="font-size:13px">(Friend)</p>
+                            </div>
+                            <div class="profile-stats" style="font-size: 15px; margin-left:50px;"> Friends: ${user.friend_count} Posts: ${user.post_count}</div>
+                        </div>`;
+                } else {
+                    userHTML = `
+                        <div class="post-status-box">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <img src="/static/profile-pics/${user.pfp_file}" alt="Profile Picture" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                                <h3><a style="margin: 0; font-size: 12;" href="/user?u=${user.username}">${user.username}</a></h3>
+                            </div>
+                            <div class="profile-stats" style="font-size: 15px; margin-left:50px;"> Friends: ${user.friend_count} Posts: ${user.post_count}</div>
+                        </div>`;
+                }
+            } else {
+                userHTML = `
+                    <div class="post-status-box">
+                        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <img src="/static/profile-pics/${user.post_pfp}" alt="Profile Picture" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                                <h2 style="margin: 0;">${user.post_username}</h2>
+                            </div>
+                            <i style="white-space: nowrap;">${user.post_date}</i>
+                        </div>
+                        <br>
+                        <a style="text-decoration:none" href="/post?p=${user.post_id}">${user.content}</a>
+                    </div>`;
+            }
+
+            resultsDiv.innerHTML += userHTML;
+        });
+    });
+});
+});
+
+</script>
+{% endblock %}

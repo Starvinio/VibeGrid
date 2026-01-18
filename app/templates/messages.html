@@ -1,0 +1,397 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Messages
+{% endblock %}
+
+{% block style %}
+<style>
+    .main-content {
+        display: flex;
+        flex: 1;
+        height: 77.5vh; /* Ensure it takes full height */ /* Allow flex shrinking */
+        overflow: hidden; /* Prevent any overflow from this container */
+    }
+
+    .chat-input {
+        padding: 10px;
+        flex-shrink: 0; /* Never shrink */
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: auto;
+        margin-right:0px;
+        z-index: 100;
+    }
+    
+    .sidebar {
+        width: 250px;
+        padding: 10px;
+        overflow-y: auto; /* Only sidebar content scrolls */
+        flex-shrink: 0; /* Sidebar maintains its width */
+        height: 100%; /* Take full height of main-content */
+    }
+    
+    .chat-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden; /* Prevent overflow from chat-area */
+        min-width: 0; /* Allow shrinking if needed */
+    }
+    
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto; /* Only messages scroll */
+        padding: 10px;
+        min-height: 0; /* Allow shrinking */
+        padding-bottom: 80px; /* Space for the fixed input */
+    }
+    
+    .messages {
+        flex: 1;
+        overflow-y: auto; /* Only messages scroll */
+        padding: 10px;
+        min-height: 0; /* Allow shrinking */
+    }
+
+    .chat-header {
+        padding: 10px 15px;
+        font-weight: bold;
+        flex-shrink: 0; /* Header stays fixed */
+    }
+</style>
+{% endblock %}
+
+
+{% block main %}
+<div class="main-content">
+    <!-- Sidebar -->
+    <div class="sidebar">
+
+        {% if current_chat %}
+            {% if current_user.dark_mode %}
+            {% set other_color = "background: linear-gradient(to bottom, #2f2f2f, #2b2b2b)" %}
+            {% else %}
+            {% set other_color = "background: linear-gradient(to bottom, #cccccc, #b1b1b1)" %}
+            {% endif %}
+        <div>
+            <br>
+            <a href="/messages" class="nav-btn" style="font-size: 15px; margin-left: auto; width: 100%" ><-- View all Chats</a>
+            <br><br>
+        </div>
+        {% endif %}
+        <div class="user-info">
+            <div style="display: flex; align-items: center;">
+                <img class="avatar" src="/static/profile-pics/{% if current_user.pfp_file %}{{current_user.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" class="profile-pic">
+                <div class="profile-stats" style="font-size:12px; margin-left: 10px;">
+                    <p>Joined: {% if current_user.accountcreated.month < 10 %}0{% endif %}{{current_user.accountcreated.month}}/{{current_user.accountcreated.year}}</p>
+                    <p>Friends: {{friend_count or 0}}</p>
+                    <p>Posts: {{post_count or 0}}</p>
+                </div>
+            </div>
+            <b> {{ current_user.username }} ✅</b>
+            <div class="status">Online</div>
+        </div>
+        {% if current_chat %}
+        <div class="user-info-other" >
+            <div style="display: flex; align-items: center;">
+                <img class="avatar" src="/static/profile-pics/{% if other.pfp_file %}{{other.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" class="profile-pic">
+                <div class="profile-stats" style="font-size:12px; margin-left: 10px;">
+                    <p>Joined: {% if other.accountcreated.month < 10 %}0{% endif %}{{other.accountcreated.month}}/{{other.accountcreated.year}}</p>
+                    <p>Friends: {{other_friend_count or 0}}</p>
+                    <p>Posts: {{other_post_count or 0}}</p>
+                </div>
+            </div>
+            <b>{{ other.username }}</b>
+            <div class="status">Offline</div>
+        </div>
+        {% endif %}
+
+        {% if viewAllChats %}
+
+        <div class="sidebar-section">
+            <div class="section-header">Friend Requests ({{ friend_requests|length or 0 }})</div>
+            <div class="section-content">
+                {% for friend in friend_requests %}
+                <div style="margin-bottom: 15px;" id="fr-{{friend.id}}">
+                    <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                        <img style="width: 30px;" src="/static/profile-pics/{% if friend.pfp_file %}{{friend.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" class="profile-pic">
+                        <div style="margin-left: 10px;">
+                            <div style="font-size: 12px; font-weight: bold;">{{ friend.username }}</div>
+                            {% set mutuals = get_mutuals(friend.id) %}
+                            <div style="font-size: 10px; color: #666;">{{mutuals}} mutual friend{% if mutuals != 1 %}s{% endif %}</div>
+                        </div>
+                    </div>
+                    <button class="retro-button" style="font-size: 10px; margin-right: 3px;" onclick="friendActions('{{friend.id}}','accept')">Accept</button>
+                    <button class="retro-button" style="font-size: 10px;" onclick="friendActions('{{friend.id}}','remove')">Decline</button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="section-header">All Friends (0 online)</div>
+            <div class="section-content" id="listOfFriends">
+                {% for friend in friend_list %}
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="/static/profile-pics/{% if friend.pfp_file %}{{friend.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                    <h2><a style="margin: 0; color:{{textcolor}}; font-size: 12;" href="/user?u={{friend.username}}">{{ friend.username }}</a></h2>
+                </div>
+                <a style="margin-left:50px" class="retro-button" href="/chat?with={{friend.username}}">Message</a>
+                <br>
+                {% endfor %}
+            </div>
+            {% if friend_list|length > 0 %}
+            <a href="/friends?u={{host.username}}" class="view-all-link">View All Friends</a>
+            {% endif %}
+        </div>
+
+        {% endif %}
+    </div>
+
+    <!-- Chat Area -->
+    <div class="chat-area">
+        {% if current_chat %}
+        
+        <!-- Chat Header -->
+        <div class="chat-header">
+            <div class="avatar">
+                <img class="avatar" src="/static/profile-pics/{% if other.pfp_file %}{{other.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" class="profile-pic">
+            </div>
+            <b>Chat with <a href="/user?u={{ other.username }}">{{ other.username }}</a></b>
+        </div>
+
+        <!-- Scrollable Messages -->
+        <div class="chat-messages">
+            {% if messages|length == 20 %}
+            <button class="nav-btn" style="text-align:center" onclick="loadMessages()">Load more</button><br><br>
+            {% endif %}
+            <div id="chat-messages">
+            {% for message in messages %}
+                {% if message.user_id == current_user.id %}
+                <div class="post-status-box" style="background: linear-gradient(to bottom, {{current_user.primary_color}}, 
+                {{ darken_hex(current_user.primary_color, 0.8) }}); width:500px;">
+                <div class="message-header">
+                    <b style="font-size: 15px;">{{ current_user.username }}</b>
+                    <span class="message-time" style="color:#f0f0f0"><b>{{ formatDate(message.date) }}</b></span>
+                    </div>
+                    <p>{{ message.data | safe }}</p>
+                </div>
+                {% else %}
+                <div class="post-status-box", style="{{other_color}}; width:500px; width:500px; margin-left: auto;" >
+                    <div class="message-header">
+                        <b style="font-size: 15px;">{{ other.username }}</b>
+                        <span class="message-time"><b>{{ formatDate(message.date) }}</b></span>
+                    </div>
+                    <p>{{ message.data | safe }}</p>
+                </div>
+                {% endif %}
+            {% endfor %}
+            </div>
+            {% if messages and are_friends == False %}
+            <p style="text-align: center; color:#555555">{{other.username}} is no longer you friend.</p>
+            {% endif %}
+
+        </div>
+
+
+        <!-- Chat Input -->
+        <div class="chat-input">
+            <textarea id="content" name="new_message" autofocus type="text" class="message-input" {% if are_friends %}placeholder="Enter a Message"{% else %}disabled placeholder="Become Friends with {{other.username}} to chat with them."{% endif %} style="flex-grow: 1; padding: 8px;"></textarea>
+            <button {% if are_friends %}onclick="sendMessage()"{% else %}style="background: linear-gradient(to bottom, #aaaaaa, #5c5c5c)"{% endif %} class="send-btn" type="confirm" style="margin-left: 5px; height: 50px">Send</button>
+        </div>
+
+        {% elif viewAllChats %}
+        <!-- All Chats View -->
+        <div class="chat-header">
+            📬 Message Hub - Recent Conversations
+        </div>
+        
+
+        {% if not all_chats %}
+        <div class="messages" style="text-align:center; color:{{greycolor}}">
+        <br>
+        <p>You have not started any chats.</p>
+        <br>
+        <p>Add a user to chat with them.</p>
+        </div>
+        {% endif %}
+
+        <div class="messages">
+            {% for chat in all_chats %}
+            <div class="message">
+                {% set msg = getMostRecentMessage(chat.id) %}
+                {% if msg and msg.user_id != current_user.id and not msg.read %}
+                    <div class="dm-indicator" style="text-align: center; font-size: 15px;">New!</div><br>
+                {% endif %}
+                <div class="message-header">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        {% if current_user.id == chat.a %}
+                            <img class="profile-pic" src="/static/profile-pics/{% if findUserByID(chat.b).pfp_file %}{{findUserByID(chat.b).pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" style="width: 40px;">
+                            <h2>{{ findUserByID(chat.b).username }}</h2>
+                        {% else %}
+                            <img class="profile-pic" src="/static/profile-pics/{% if findUserByID(chat.a).pfp_file %}{{findUserByID(chat.a).pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" style="width: 40px;">
+                            <h2>{{ findUserByID(chat.a).username }}</h2>
+                        {% endif %}
+                    </div>
+                    <span class="message-time">{{ formatDate(msg.date) }}
+                    </span>
+                </div>
+                <div class="message-content">
+                    {% if msg.user_id == current_user.id %}
+                    <b style="color:{{current_user.primary_color}}">You:</b>
+                    {% else %}
+                    <b style="color:#555555">Them:</b>
+                    {% endif %}
+                    {{ msg.data }}
+                </div>
+                <div class="message-actions">
+                    <a href="/chat?with={% if current_user.id == chat.a %}{{ findUserByID(chat.b).username }}{% else %}{{ findUserByID(chat.a).username }}{% endif %}" class="action-link">View Conversation</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+  window.onload = function () {
+    const messagesDiv = document.querySelector('.chat-messages');
+    if (messagesDiv) {
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+  };
+
+{% if current_chat %}
+const socket = io()
+
+socket.on('connect', () => {
+        console.log("Connected to server.");
+    });
+
+socket.on('message', (data) => {
+    const chat = document.querySelector('.chat-messages');
+    if (data.username == "{{current_user.username}}")
+    {
+    chat.innerHTML += `<div class="post-status-box" style="background: linear-gradient(to bottom, ${data.primary_color}, ${data.darken_color}); width:500px;">
+        <div class="message-header">
+            <b style="font-size: 15px;">${data.username}</b>
+            <span class="message-time" style="color:#f0f0f0"><b>${data.date}</b></span>
+        </div>
+        <p>${data.data}</p>
+    </div>
+    `;
+    }
+    else {
+        chat.innerHTML += `<div class="post-status-box" style="{{other_color}}; width:500px; margin-left: auto;">
+        <div class="message-header">
+            <b style="font-size: 15px;">${data.username}</b>
+            <span class="message-time" style="color:#f0f0f0"><b>${data.date}</b></span>
+        </div>
+        <p>${data.data}</p>
+    </div>
+    `;
+
+    }
+    chat.scrollTop = chat.scrollHeight; // Auto-scroll to bottom
+});
+
+function sendMessage() {
+    const input = document.getElementById('content');
+    const message = input.value;
+    const chat_id = "{{current_chat.id}}"
+    socket.emit('message', {
+    'chat_id': chat_id,
+    'message': message,
+    })
+    input.value = '';
+}
+
+
+let pageNr = 1;
+
+function loadMessages(filter) {
+    fetch("/request_messages", {
+        method: "POST",
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ chat_id: {{current_chat.id}}, page: pageNr })
+    })
+    .then(response => response.json())
+    .then(data => {
+        let new_messages = "";
+        
+        data.forEach(message => {  // Changed from 'user' to 'post' for clarity
+            let new_message = "";
+
+            if (message.user_id == "{{current_user.id}}")
+            {
+                new_message = `
+                <div class="post-status-box" style="${message.background}; width:500px;">
+                <div class="message-header">
+                    <b style="font-size: 15px;">${message.username}</b>
+                    <span class="message-time" style="color:#f0f0f0"><b>${message.date}</b></span>
+                    </div>
+                    <p>${message.data}</p>
+                </div>` 
+            }
+            else {
+                new_message = `<div class="post-status-box", style="${message.background}; width:500px; width:500px; margin-left: auto;" >
+                    <div class="message-header">
+                        <b style="font-size: 15px;">${message.username}</b>
+                        <span class="message-time"><b>${message.date}</b></span>
+                    </div>
+                    <p>${message.data}</p>
+                </div>` 
+            }
+
+            new_messages += new_message;  
+        });
+        const messagesDiv = document.getElementById('chat-messages');
+        messagesDiv.innerHTML = new_messages + messagesDiv.innerHTML
+        pageNr += 1;
+    })
+    .catch(error => {
+        console.error("Error loading Messages:", error);
+    });
+}
+{% endif %}
+
+
+  function friendActions(otherId, action)
+  {
+    fetch("/friend_actions",
+        {
+            method:"POST",
+            headers: {'Content-Type': 'application/json',},
+            body: JSON.stringify({ otherId:otherId, action:action})
+        }
+    )
+    .then(response => response.json())
+    .then(data => {
+        if(data.updated_status == "accepted")
+        {
+            document.getElementById(`fr-${otherId}`).innerHTML = "Request Accepted"
+            document.getElementById("listOfFriends").innerHTML += `
+            <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="/static/profile-pics/${data.pfp}" alt="Profile Picture" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                    <h2><a style="margin: 0; color:{{textcolor}}; font-size: 12;" href="/user?u=${data.other_username}">${data.other_username}</a></h2>
+                    <a class="retro-button" href="/chat?with=${data.other_username}">Message</a>
+            </div>`
+    
+        }
+        else
+        {
+            document.getElementById(`fr-${otherId}`).innerHTML = "Request Declined"
+        }
+    })
+    .catch(error => console.error('Error:', error));
+  }
+
+</script>
+{% endblock %}
+
+<!--newMessageDate-->

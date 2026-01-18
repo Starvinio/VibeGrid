@@ -1,0 +1,639 @@
+{% extends "layout.html" %}
+
+{% block title %}
+{{host.username or "Profile"}}
+{% endblock %}
+
+{% block main %}
+{% if route == "/profile" or (user and (user.private_account == False or are_friends_var)) %}
+    <main style="overflow-y: auto;">
+        <div class="profile-container">
+            <!-- Profile Header -->
+            <div class="profile-header">
+            <div class="profile-pic-container">
+                <img src="/static/profile-pics/{% if host.pfp_file %}{{host.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" class="profile-pic">
+                <div class="offline-indicator"></div>
+            </div>
+            <div class="profile-info">
+                <h1 class="profile-name"> {{host.username}}</h1>
+                <p class="profile-status"> {{host.status}}</p>
+                <div class="profile-stats">
+                <span class="stat">Friends: <strong>{{friend_count or 0}}</strong></span>
+                <span class="stat">Posts: <strong>{{post_count or 0}}</strong></span>
+                <span class="stat">Joined: <strong>{% if host.accountcreated.month < 10 %}0{% endif %}{{host.accountcreated.month}}/{{host.accountcreated.year}}</strong></span>
+                </div>
+                <div class="profile-actions" id="profile-actions">
+                {% if route == "/user" %}
+
+                    {% if relationship == "none" %}
+                    <button class="action-btn primary" onclick="friendActions('{{user.id}}', 'add')">Add Friend</button>
+
+                    {% elif relationship == "pending-accept" %}
+                    <button class="action-btn primary" style="background: linear-gradient(to bottom, #5ce24a, #35b751)" onclick="friendActions('{{user.id}}', 'accept')">Accept Friend Request</button>
+                    <button class="action-btn primary" style="background: linear-gradient(to bottom, #fc4343, #e22828)" onclick="friendActions('{{user.id}}', 'remove')">Decline</button>
+
+                    {% elif relationship == "pending-waiting" %}
+                    <button type="button" class="action-btn primary" style="background: linear-gradient(to bottom, #aaaaaa, #5c5c5c)">Friend Request Sent</button>
+                    <button type="button" class="action-btn primary" style="background: linear-gradient(to bottom, #fc4343, #d43939)" onclick="friendActions('{{user.id}}', 'remove')">Cancel</button>
+<
+                    {% elif relationship == "accepted" %}
+                    
+                    
+                    <a style="text-decoration:none" class="action-btn primary" href="/chat?with={{user.username}}">Message</a>
+                    
+
+                    <button onclick="removeFriend('{{user.id}}')" class="action-btn primary" id="removeFriend" type="submit">Remove Friend</button>
+                    
+                    {% endif %}
+                {% else %}
+                <br>
+                        <a style="text-decoration:none" href="/settings"  class="action-btn primary">Edit Profile</a>
+                        <a style="text-decoration:none" href="/search" class="action-btn primary">Find Friends</a>
+                {% endif %}
+                {% if host.walk_in_file %}
+                    <audio id="walk_in" src="/static/walk-ins/{{host.walk_in_file}}" preload="auto"></audio>
+                    <button class="action-btn primary" onclick="document.getElementById('walk_in').play()">▶ Play walk in </button>
+                {% endif %}
+                </div>
+                </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="profile-content">
+            <!-- Left Sidebar -->
+            <div class="profile-sidebar">
+                <!-- About Section -->
+                <div class="sidebar-section">
+                    <h3 class="section-title">About Me</h3>
+                    <div class="about-content">
+                        <p style="">{{host.bio | safe or ""}}</p>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3 class="section-title">Friends ({{friend_count or 0}})</h3>
+                    <div class="friends-grid">
+                        {% for friend in get_friend_list(host.id) %}
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <img src="/static/profile-pics/{% if friend.pfp_file %}{{friend.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                            <h3 style="margin: 0;"><a style="color:{{textcolor}}" href="/user?u={{friend.username}}">{{ friend.username }}</a></h3>
+                        </div>
+                        <br>
+                        {% endfor %}
+                    </div>
+                    <a href="/friends?u={{host.username}}" class="view-all-link">View All Friends</a>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3 class="section-title" id="profileCommentCount" data-count="{{host.profile_comments|length or 0}}">Profile Comments ({{host.profile_comments|length or 0}}/5)</h3>
+                    <div id="profileCommentDiv">
+                    {% for profile_comment in host.profile_comments %}
+                    <div class="post-status-box" id="comment-box-{{profile_comment.id}}">
+                        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                            <!-- Left: Profile picture and username -->
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <h4 style="margin: 0;"><a href="/user?u={{profile_comment.user.username}}">{{ profile_comment.user.username }}</a></h4>
+                            </div>
+                            <i style="white-space: nowrap; color: '{{greycolor}}';">
+                                {{formatDate(profile_comment.date)}}
+                            </i>
+                        </div>
+    
+                        <p style="display: flex; align-items: center; gap: 10px; margin:5px">{{profile_comment.data | safe}}
+                            {% if route == "/profile" or profile_comment.user_id == current_user.id %} 
+                            <button style="margin-left:auto; margin-right:0;" class="retro-button primary" type="button" onclick="deleteCommentWarn({{profile_comment.id}})" id="delete-{{ profile_comment.id }}">❌</button>
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% endfor %}
+                    </div>
+                    <div id="newCommentInput">
+                        {% if are_friends_var and can_comment and host.profile_comments|length < 5 %}
+                        <div class="post-status-box">
+                            <textarea name="new_comment" id="profileCommentContent" placeholder="add a comment" class="status-input" style="width:"></textarea>
+                            {% if error %}<p><b style="color:red">Error:</b> {{error}}.</p>{% endif %}
+                            <div class="post-actions">
+                                <button type="submit" id="addProfileComment" onclick="addProfileComment()" class="nav-btn primary" style="font-size: 25;">Share</button>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Feed -->
+            <div class="profile-feed">
+                <!-- Post Status -->
+                {% if route == "/profile" %}
+                    <div class="post-status-box" id="new_post_form">
+                        {% if error %}<p style="color:red">Error: {{error}}</p>{% endif %}
+                        <textarea name="content" id="new_post_content" placeholder="What's on your mind, {{current_user.username}}?" class="status-input"></textarea>
+                        <!-- TODO: ADD LIMIT OF 500 -->
+                        <div class="post-actions">
+                            <label for="file-upload" class="nav-btn">+</label>
+                            <input id="file-upload" type="file" class="file-input" accept="image/*" style="vertical-align: middle;">
+                            <img id="preview" style="display:none; max-width: 150px; margin-left: 10px; vertical-align: middle;">
+                            <button id="remove-btn" style="display:none; margin-left: 10px; vertical-align: middle;">Remove</button>
+                            <button onclick="uploadPost()" type="submit" class="nav-btn" style="font-size: 25;">Share</button>
+                        </div>
+                    </div>
+                {% endif %}
+                <!-- Wall Posts -->
+                <div class="wall-posts">
+                    <div>
+                        <h3 class="section-title">Posts</h3>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; width: 100%; white-space: nowrap">
+
+
+                        <form action={{route}} method="get">
+                            <input type="hidden" name="u" value="{{ host.username }}">
+                            <select name="filter">
+                                <option value="new-old">New-Old</option>
+                                <option value="old-new" {% if current_filter == "old-new" %}selected{% endif %}>Old-New</option>
+                                <option value="most-popular" {% if current_filter == "most-popular" %}selected{% endif %}>Most Popular</option>
+                            </select>
+                            <button class="retro-button" type="submit">Apply Filter</button>
+                        </form>
+                    </div>
+                    <br>
+                <!-- Posts -->
+                <div id=all-posts>
+                {% for post in posts %}
+                    <div class="post-status-box" data-post-id="{{post.id}}" id="postContainer-{{post.id}}">
+                        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                            <!-- Left: Profile picture and username -->
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <img src="/static/profile-pics/{% if host.pfp_file %}{{host.pfp_file}}{% else %}{{defaultpic}}{%endif%}" alt="Profile Picture"
+                                    style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                                <h2 style="margin: 0;">{{ host.username }}</h2>
+                            </div>
+
+                            <!-- Right: Post date -->
+                            <i style="white-space: nowrap;">
+                                {{formatDate(post.date)}}
+                            </i>
+                        </div>
+                        <br>
+                        {% if post.data %}<b>{{post.data | safe}}</b> {% if post.image_path %}<br><br>{%endif%} {% endif %}
+                        {% if post.image_path %}
+                        <img src="{{ url_for('static', filename='post-content/' ~ post.image_path) }}" style="max-width: 625px; border-radius: 20px; padding:3px; margin:0px">
+                        {% endif %}
+                        <br>
+                        <div class="post-actions" style="display: flex; gap: 10px; align-items: center;">
+                            {% set postVoteRatio = getPostVoteRatio(post.id) %} 
+                            <p id="vote-count-{{post.id}}">{% if postVoteRatio != 0 %}{{postVoteRatio}}{% endif %}</p>
+                            <!-- Upvote Button -->
+                            {% set user_vote = getUserPostVote(post.id) %}
+        
+                            <button onclick="votePost('{{post.id}}', 'up')" id="upvote-{{post.id}}" class="nav-btn" {% if user_vote == 1 %}style="background: linear-gradient(to bottom, #4ae24a, #35b735);"{% endif %}>👍</button>
+
+                            <!-- Downvote Button -->
+                            <button onclick="votePost('{{post.id}}', 'down')" id="downvote-{{post.id}}" class="nav-btn" {% if user_vote == -1 %}style="background: linear-gradient(to bottom, #e2614a, #b73535);"{% endif %}>👎</button>
+
+                            {% if route == "/profile"%}
+                            <button class="nav-btn primary delete-btn" type="button" name="{{ post.id }}">🗑️</button>
+                            {% endif %}
+
+                            <i id="interactions-{{post.id}}" style="white-space: nowrap;">{% if post.votes|length != 1 %}{{ post.votes|length }} Interactions{% else %}1 Interaction{% endif %}</i>
+                        </div>
+                        <br>
+                        <a href="post?p={{post.id}}">View {% if post.comments|length > 0 %}{{post.comments|length}}{% endif %} Comments</a>
+                    </div>
+                {% endfor %}
+                {% if posts|length > 19 %}
+                </div>
+                <button class="nav-btn" style="text-align:center" onclick="loadPosts('{{current_filter or 'new-old'}}')">Load more</button>
+                </div>
+                {% endif %}
+                </div>
+                </div>
+            </div>
+            </div>
+        </div>
+    </main>
+
+{% else %}
+    <main style="overflow-y: auto;">
+        <div class="profile-container">
+            <!-- Profile Header -->
+            <div class="profile-header">
+            <div class="profile-pic-container">
+                <img src="/static/profile-pics/default.png" alt="Profile Picture" class="profile-pic">
+            </div>
+            <div class="profile-info">
+                <h1 class="profile-name"> {{user.username}}</h1>
+                <p> Private Account 🔒</p>
+                <div class="profile-stats">
+                <span class="stat">Friends: <strong>{{friend_count or 0}}</strong></span>
+                <span class="stat">Posts: <strong>{{post_count or 0}}</strong></span>
+                <span class="stat">Joined: <strong>{% if user.accountcreated.month < 10 %}0{% endif %}{{user.accountcreated.month}}/{{user.accountcreated.year}}</strong></span>
+                </div>
+                <div class="profile-actions" id="profile-actions">
+                
+                {% if relationship == "none" %}
+                <button class="action-btn primary" onclick="friendActions('{{user.id}}', 'add')">Add Friend</button>
+
+                {% elif relationship == "pending-accept" %}
+                <button class="action-btn primary" style="background: linear-gradient(to bottom, #5ce24a, #35b751)" onclick="friendActions('{{user.id}}', 'accept')">Accept Friend Request</button>
+                <button class="nav-btn" style="background: linear-gradient(to bottom, #fc4343, #e22828)" onclick="friendActions('{{user.id}}', 'remove')">Decline</button>
+
+                {% elif relationship == "pending-waiting" %}
+                <button type="button" class="action-btn primary" style="background: linear-gradient(to bottom, #aaaaaa, #5c5c5c)">Friend Request Sent</button>
+                <button type="button" class="action-btn primary" style="background: linear-gradient(to bottom, #fc4343, #d43939)" onclick="friendActions('{{user.id}}', 'remove')">Cancel</button>
+
+                {% elif relationship == "accepted" %}
+                
+                <a class="action-btn primary" href="/chat?with={{user.username}}">Message</a>
+
+                <button onclick="removeFriend('{{user.id}}')" class="action-btn primary" id="removeFriend" type="submit">Remove Friend</button>
+                
+                {% endif %}
+                </div>
+            </div>
+            </div>
+        </div>
+    </main>
+    {% endif %}
+        
+    </div>
+{% endblock %}
+
+{% block script %}
+<script>
+
+let pageNr = 1;
+
+function loadPosts(filter) {
+    fetch("/request_posts", {
+        method: "POST",
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ filter: filter, pageNr: pageNr, user: "{{current_user.id}}" })
+    })
+    .then(response => response.json())
+    .then(data => {
+        let new_posts = "";
+        
+        data.forEach(post => {  // Changed from 'user' to 'post' for clarity
+            let new_post = "";
+            new_post += `
+            <div class="post-status-box" data-post-id="${post.post_id}" id="postContainer-${post.post_id}">
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <!-- Left: Profile picture and username -->
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <img src="/static/profile-pics/${post.pfp}" alt="Profile Picture"
+                            style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                        <h2 style="margin: 0;"><a href="/user?u={{host.username}}">{{host.username}}</a></h2>
+                    </div>
+
+                    <!-- Right: Post date -->
+                    <i style="white-space: nowrap;">
+                        ${post.postDate}
+                    </i>
+                </div>
+                <br>
+                <b>${post.postData}</b>`;
+
+            if (post.imagePath) {
+                new_post += `<br><br><img src="${post.imagePath}" style="max-width: 625px;">`;
+            }
+            
+            new_post += `
+                <br>
+                <div class="post-actions" style="display: flex; gap: 10px; align-items: center;">
+                    <p id="vote-count-${post.post_id}">${post.voteRatio || ''}</p>`;
+
+            // Fixed switch statement and vote button logic
+            if (post.user_vote === 1) {
+                new_post += `
+                    <button onclick="votePost('${post.post_id}', 'up')" id="upvote-${post.post_id}" class="nav-btn" style="background: linear-gradient(to bottom, #4ae24a, #35b735);">👍</button>
+                    <button onclick="votePost('${post.post_id}', 'down')" id="downvote-${post.post_id}" class="nav-btn">👎</button>`;
+            } else if (post.user_vote === -1) {
+                new_post += `
+                    <button onclick="votePost('${post.post_id}', 'up')" id="upvote-${post.post_id}" class="nav-btn">👍</button>
+                    <button onclick="votePost('${post.post_id}', 'down')" id="downvote-${post.post_id}" class="nav-btn" style="background: linear-gradient(to bottom, #e2614a, #b73535);">👎</button>`;
+            } else {
+                new_post += `
+                    <button onclick="votePost('${post.post_id}', 'up')" id="upvote-${post.post_id}" class="nav-btn">👍</button>
+                    <button onclick="votePost('${post.post_id}', 'down')" id="downvote-${post.post_id}" class="nav-btn">👎</button>`;
+            }
+            
+            // Fixed current user check - this needs to be handled server-side or passed as data
+            if (post.is_current_user) {  // Assuming this comes from server
+                new_post += `<button class="nav-btn primary delete-btn" type="button" name="${post.post_id}">🗑️</button>`;
+            }
+
+            // Fixed interaction text logic
+            const interaction_form = (post.interactions !== 1) ? "Interactions" : "Interaction";
+
+            new_post += `
+                    <i id="interactions-${post.post_id}" style="white-space: nowrap;">${post.interactions} ${interaction_form}</i>
+                </div>
+                <br>
+                <a href="post?p=${post.post_id}">View ${post.comment_count || ''} Comments</a>
+            </div>`;
+
+            new_posts += new_post;  // Fixed: was adding to itself instead of accumulating
+        });
+        
+        document.getElementById("all-posts").innerHTML += new_posts;
+        pageNr += 1;
+    })
+    .catch(error => {
+        console.error("Error loading posts:", error);
+    });
+}
+
+function addProfileComment()
+{
+    const commentTextarea = document.getElementById("profileCommentContent");
+    const content = commentTextarea.value;
+    if (!content){
+        return;
+    }
+
+    fetch("/add_profile_comment", {
+        method: "POST",
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ content: content, profile_id: "{{host.id}}" })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status_code != 200){
+            return;
+        }
+        commentTextarea.value = '';
+        const profileCommentDiv = document.getElementById("profileCommentDiv");
+        document.getElementById("newCommentInput").innerHTML = '';
+        var commentCount = document.getElementById("profileCommentCount")
+        commentCount.dataset.count = Number(commentCount.dataset.count) + 1;
+        commentCount.innerHTML=`Profile Comments (${commentCount.dataset.count}/5)`
+        profileCommentDiv.innerHTML += `
+        <div class="post-status-box" id="comment-box-${data.id}">
+            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <h4 style="margin: 0;"><a style="text-decoration: none;" href="/user?u={{current_user.username}}">{{current_user.username}}</a></h4>
+                </div>
+                <i style="white-space: nowrap; color: {{greycolor}}">
+                    ${data.date}
+                </i>
+            </div>
+            <p style="display: flex; align-items: center; gap: 10px; margin:5px">${data.comment} <button style="margin-left:auto; margin-right:0;" class="retro-button primary" type="button" onclick="deleteCommentWarn(${data.id})" id=delete-${data.id}>❌</button></p>
+        </div>`;
+    })
+    .catch(error => {
+        console.error("Error loading posts:", error);
+    });
+}
+
+function deleteCommentWarn(commentId)
+{
+    const comment = document.getElementById(`delete-${commentId}`);
+    comment.innerHTML = "DELETE";
+    comment.onclick = () => deleteComment(commentId);
+    
+
+}
+
+function deleteComment(commentId)
+  {
+    fetch("/deleteComment",{
+        method: "POST",
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({commentId: commentId})
+    })
+    .then(response => response.json())
+    .then(data =>
+    {
+        if (data.status_code == 200) {
+        document.getElementById(`comment-box-${commentId}`).innerHTML = '<i style="color: #555">Comment deleted</i>';
+        var commentCount = document.getElementById("profileCommentCount")
+        commentCount.dataset.count -= 1;
+        commentCount.innerHTML=`Profile Comments (${commentCount.dataset.count}/5)`
+        }
+    })
+    .catch(error => console.error('Error:', error));
+  }
+  
+
+
+window.addEventListener('load', function() {
+    const audio = document.getElementById('walk_in');
+    if (audio) {
+    audio.play().catch(error => {
+    console.warn('Autoplay blocked by browser:', error);
+    });
+    }
+});
+
+
+document.addEventListener("DOMContentLoaded", () => {
+// Use event delegation to handle delete button clicks
+document.addEventListener("click", function(event) {
+    if (event.target.classList.contains("delete-btn")) {
+        const button = event.target;
+        
+        // Initialize confirmed state if not set
+        if (!button.dataset.confirmed) {
+            button.dataset.confirmed = "false";
+        }
+
+        if (button.dataset.confirmed === "false") {
+            button.style.background = "linear-gradient(to bottom, #e25c4a, #b73e35)";
+            button.textContent = "Confirm Deletion";
+            button.dataset.confirmed = "true";
+        } else {
+            deletePost(button.name);
+        }
+    }
+});
+});
+
+
+function votePost(postId, direction)
+{
+    fetch(`/votepost`,
+        {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json',},
+            body: JSON.stringify({ post_id: postId, direction: direction})
+        })
+    .then(response => response.json())
+    .then(data => {
+    if (direction == "up"){
+
+    document.getElementById(`downvote-${postId}`).style = ''
+    document.getElementById(`upvote-${postId}`).style = "background: linear-gradient(to bottom, #4ae24a, #35b735);"
+    }
+    else if (direction == "down")
+    {
+        document.getElementById(`upvote-${postId}`).style = ''
+        document.getElementById(`downvote-${postId}`).style = "background: linear-gradient(to bottom, #e2614a, #b73535);"
+    }
+    document.getElementById(`vote-count-${postId}`).textContent = data.vote_count;
+    if (data.interactions != 1) {
+        document.getElementById(`interactions-${postId}`).textContent = `${data.interactions} interactions`;
+    }
+    else {
+        document.getElementById(`interactions-${postId}`).textContent = `${data.interactions} interaction`;
+    }
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function friendActions(otherId, action)
+{
+    fetch("/friend_actions",
+        {
+            method:"POST",
+            headers: {'Content-Type': 'application/json',},
+            body: JSON.stringify({ otherId:otherId, action:action})
+        }
+    )
+    .then(response => response.json())
+    .then(data => {
+        actionDiv = document.getElementById("profile-actions")
+        switch(data.updated_status)
+        {
+            case "none":
+                actionDiv.innerHTML = 
+            `<button class="action-btn primary" onclick="friendActions(${otherId}, 'add')">Add Friend</button>`;
+            break;
+            case "pending-waiting":
+                actionDiv.innerHTML = 
+            `<button type="button" class="action-btn primary" style="background: linear-gradient(to bottom, #aaaaaa, #5c5c5c)">Friend Request Sent</button> <button type="button" class="action-btn primary" style="background: linear-gradient(to bottom, #fc4343, #d43939)" onclick="friendActions(${otherId}, 'remove')">Cancel</button>`
+            break;
+            case "accepted":
+                actionDiv.innerHTML =
+                `<a class="action-btn primary" href="/chat?with=${data.other_username}">Message</a>
+                <button onclick="removeFriend(${otherId})" class="action-btn primary" id="removeFriend" type="submit">Remove Friend</button>`
+
+        }
+})
+.catch(error => console.error('Error:', error));
+}
+
+  function removeFriend(otherId)
+  {
+    rm_btn = document.getElementById("removeFriend")
+    rm_btn.innerHTML = "Confirm Friend Removal"
+    rm_btn.style = "background: linear-gradient(to bottom, #fc4343, #e22828)"
+    rm_btn.onclick = friendActions(`${otherId}`, "remove")
+  }
+
+{% if route == "/profile" %}
+
+function deletePost(postId)
+{
+    fetch('/deletePost',
+        {
+            method: "POST",
+            headers: {'Content-Type': 'application/json',},
+            body: JSON.stringify({ postId: postId})
+        }
+        
+    )
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById(`postContainer-${postId}`).innerHTML = '<i style="color: #555">Post deleted</i>'
+    })
+
+    .catch(error => console.error('Error:', error));
+
+}
+
+function uploadPost()
+{
+    const textContent = document.getElementById("new_post_content").value
+    if (textContent.length > 450) {
+        console.log("Post content too great - aborting")
+        return;
+        }
+    const file_upload = document.getElementById("file-upload")
+    const file = fileInput.files[0];
+
+    if (!file && !textContent)
+    {
+        return
+    }
+
+    const formData = new FormData();
+    formData.append('content', textContent);
+    if (file) {
+        formData.append('image', file);  // 'image' is the key Flask will look for
+    }
+
+    fetch("/upload_post", {
+        method: "POST",
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error("Upload failed");
+        }
+        return response.json();  
+    })
+    .then(data => {
+        console.log("Post uploaded successfully:", data);
+        window.location.replace("/profile")
+
+    })
+    .catch(error => {
+        console.error("Error uploading post:", error);
+    });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const input = document.getElementById("new_post_content");
+
+    if (!input) {
+        console.error("Textarea not found!");
+        return;
+    }
+
+    input.addEventListener("input", function () {
+        this.style.height = "auto";
+        this.style.height = this.scrollHeight + "px";
+
+        if (this.value.length > 450) {
+            this.style.color = "red";
+        } else {
+            this.style.color = "{{ textcolor }}";  // Will work if this JS is in the template
+        }
+    });
+});
+
+// IMAGE UPLOAD FOR POSTS
+
+const fileInput = document.getElementById('file-upload');
+const preview = document.getElementById('preview');
+const removeBtn = document.getElementById('remove-btn');
+
+fileInput.addEventListener('change', () => {
+const file = fileInput.files[0];
+if (file && file.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = e => {
+    preview.src = e.target.result;
+    preview.style.display = 'inline-block';
+    removeBtn.style.display = 'inline-block';
+    };
+    reader.readAsDataURL(file);
+} else {
+    preview.style.display = 'none';
+    preview.src = '';
+    removeBtn.style.display = 'none';
+}
+});
+
+removeBtn.addEventListener('click', () => {
+fileInput.value = '';  // Clear the selected file
+preview.src = '';
+preview.style.display = 'none';
+removeBtn.style.display = 'none';
+});
+
+{% endif %}
+
+</script>
+{% endblock %}

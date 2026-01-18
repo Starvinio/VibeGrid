@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+{% if user %}
+    {% set host = user %}
+    {% if current_user.hide_profile_customization %}
+        {% set stylehost = current_user %}
+    {% elif user.private_account == False or are_friends(user.id) %}
+        {% set stylehost = user %}
+    {% endif %}
+{% else %}
+    {% set host = current_user %}
+    {% set stylehost = current_user %}
+{% endif %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% if stylehost and stylehost.dark_mode %}
+        <link href="/static/dark_mode_styles.css" rel="stylesheet">
+    {% else %}
+        <link href="/static/styles.css" rel="stylesheet">
+    {% endif %}
+    <title>VibeGrid 🌐 - {% block title %}{% endblock %}</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+    
+    {% if stylehost %}
+        body {
+            {% if stylehost.bg_file %}
+            background-image: url('{{ url_for('static', filename='bg-pics/' ~ stylehost.bg_file) }}');
+            {% else %}
+                {% if stylehost.dark_mode %}
+                    background: linear-gradient(45deg, #17203f, #1a1a1a);
+                {% else %}
+                    background: linear-gradient(45deg, #1998ff, #2c2a98);
+                {% endif %}
+            {% endif %}
+        }
+
+        .header {
+            background: linear-gradient(
+            to bottom, 
+            {{stylehost.primary_color}}, 
+            {{ darken_hex(stylehost.primary_color, 0.6) }}
+            );
+            border-bottom: 2px solid {{darken_hex(stylehost.primary_color, 0.3)}};
+        }
+
+
+        .nav-btn, .send-btn {
+        background: linear-gradient(to top, {{stylehost.primary_color}}, {{ darken_hex(stylehost.primary_color, 0.8) }});
+        border: 1px solid {{darken_hex(stylehost.primary_color, 0.5)}};
+        }
+
+        .profile-actions .primary  {
+        background: linear-gradient(to bottom, {{stylehost.primary_color}}, {{ darken_hex(stylehost.primary_color, 0.8) }});
+        border: 1px solid {{ darken_hex(stylehost.primary_color, 0.3) }};
+        }
+
+        .profile-pic,
+        .friend-thumb img,
+        .search-result-avatar {
+            border: 2px solid {{stylehost.primary_color}};
+        }
+        a, .friend-item, .action-link, .search-result-name, .view-all-link {
+            color: {{stylehost.primary_color}}
+        }
+        
+        {% if stylehost.transparency %}
+            {% if stylehost.dark_mode %}
+            .container, .main-content {
+                background-color: rgba(39, 39, 39, 0.2); 
+            }
+            {% else %}
+            .container, .main-content {
+                background-color: rgba(240, 240, 240, 0.2); 
+            }
+            {% endif %}
+        .sidebar, .messages, .profile-container, .chat-area, .main-content {
+            background-color: transparent
+        }
+        .profile-card,
+        .profile-panel,
+        .post,
+        .section-content,
+        .chat-input,
+        .message,
+        .post-status-box,
+        .profile-header,
+        .sidebar-section {
+            {% if stylehost.dark_mode %}
+            background-color: rgba(50, 50, 50, 0.4) !important;
+            backdrop-filter: blur(2px);
+            {% else %}
+            background-color: rgba(255, 255, 255, 0.4) !important;
+            backdrop-filter: blur(2px);
+            {% endif %}
+        }
+        .chat-area,
+        {
+            background-color: rgba(240, 240, 240, 0.2) !important;
+        }
+        
+        {% endif %}
+
+        .profile-header
+        {
+            {% if stylehost.banner_file %}
+            background-image: url('{{ url_for('static', filename='banner-pics/' ~ stylehost.banner_file) }}');
+            {% endif %}
+        }
+        {% else %}
+        body{
+        background: linear-gradient(45deg, #1998ff, #2c2a98);
+        }
+    {% endif %}
+    </style>
+    {% block style %}{% endblock %}
+</head>
+<!---background:none; background-color: #00FF00; -->
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo" style="font-family: 'Comic Sans MS', 'Comic Sans', cursive;"><a style="text-decoration: none; color:#ffffff" href="/">🌐 VibeGrid</a></div>
+            <nav class="nav-buttons">
+                <a href="/" class="nav-btn">Home</a>
+                <a href="/profile" class="nav-btn">Profile</a>
+                <a href="/search" class="nav-btn">Search</a>
+                <a href="/messages" class="nav-btn">Messages {% if hasUnreads(current_user.id) %}<b class="dm-indicator">!</b></a>{% endif %}
+                <a href="/settings" class="nav-btn">Settings</a>
+                <a href="/logout" class="nav-btn">Logout</a>
+            </nav>
+        </header>
+
+        {% if stylehost and stylehost.dark_mode %}
+        {% set defaultpic = "default-inverted.png"%}
+        {% set textcolor = "#fafafa"%}
+        {% set greycolor = "#b0b0b0"%}
+        {% else %}
+        {% set defaultpic = "default.png"%}
+        {% set textcolor = "black"%}
+        {% set greycolor = "#555555" %}
+        {% endif %}
+
+        <main style="overflow-y: auto;">
+            {% block main %}{% endblock %}
+        </main>
+
+        
+    </div>
+
+    {% block script %}{% endblock %}
+    <footer style="text-align: center; font-size: 11px; color: #ffffff; margin-top: 20px;">
+  &copy; 2025 VibeGrid | Like & Sub
+    </footer>
+</body>
+</html>
